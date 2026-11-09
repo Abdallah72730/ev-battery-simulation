@@ -1,0 +1,10 @@
+fastapi>=0.115
+uvicorn[standard]>=0.30
+pydantic>=2.7
+pybamm==26.10.1.1
+numpy
+scipy
+
+#dev / tests
+pytest
+httpx
