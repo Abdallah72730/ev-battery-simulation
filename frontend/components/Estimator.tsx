@@ -1,21 +1,37 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import dynamic from "next/dynamic";
-import {
-  FALLBACK_PRESETS,
-  fetchPresets,
-  runEstimate,
-  type EstimateRequest,
-  type EstimateResponse,
-} from "@/lib/api";
+import { fetchPresets, runEstimate, type EstimateRequest, type EstimateResponse } from "@/lib/api";
 
 const SohChart = dynamic(() => import("./SohChart"), { ssr: false });
 const SUPPORT_URL = process.env.NEXT_PUBLIC_SUPPORT_URL;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
+// Short names that read naturally inside the sentence.
+const VEHICLE_WORDS: Record<string, string> = {
+  compact_car: "a compact EV",
+  midsize_car: "a mid-size EV",
+  pickup: "an electric pickup",
+  city_bus: "an electric city bus",
+};
+const CLIMATE_WORDS: Record<string, string> = {
+  red_deer: "Red Deer",
+  calgary: "Calgary",
+  edmonton: "Edmonton",
+  vancouver: "Vancouver",
+  toronto: "Toronto",
+  phoenix: "Phoenix",
+};
+const CHARGE_TO = [0.5, 0.6, 0.7, 0.8, 0.9, 1.0];
+const FAST_SHARE = [0, 0.05, 0.1, 0.25, 0.5, 0.75, 1];
+const YEARS = [5, 8, 10, 12, 15, 20];
+
+const pct = (x: number) => `${Math.round(x * 100)}%`;
+
 export default function Estimator() {
-  const [presets, setPresets] = useState(FALLBACK_PRESETS);
+  const [vehicles, setVehicles] = useState(VEHICLE_WORDS);
+  const [climates, setClimates] = useState(CLIMATE_WORDS);
   const [form, setForm] = useState<EstimateRequest>({
     vehicle: "midsize_car",
     climate: "red_deer",
@@ -25,15 +41,29 @@ export default function Estimator() {
     thermal_management: true,
     years: 10,
   });
-  const [customTemps, setCustomTemps] = useState<number[]>(Array(12).fill(10));
+  const [temps, setTemps] = useState<number[]>([-5, -3, 2, 8, 13, 18, 21, 20, 15, 9, 2, -3]);
   const [result, setResult] = useState<EstimateResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const resultRef = useRef<HTMLElement>(null);
 
-  // Fetching presets also wakes the backend up, hiding most of the cold-start delay.
+  // Loading presets also wakes the backend, hiding most of the cold-start delay.
+  // Any vehicle or climate the backend adds later still shows up, using its full label.
   useEffect(() => {
-    fetchPresets().then(setPresets).catch(() => {});
+    fetchPresets()
+      .then((p) => {
+        setVehicles({ ...Object.fromEntries(Object.entries(p.vehicles).map(([k, v]) => [k, `a ${v}`])), ...VEHICLE_WORDS });
+        setClimates({ ...p.climates, ...CLIMATE_WORDS });
+      })
+      .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (result && resultRef.current) {
+      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      resultRef.current.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    }
+  }, [result]);
 
   const set = <K extends keyof EstimateRequest>(k: K, v: EstimateRequest[K]) =>
     setForm((f) => ({ ...f, [k]: v }));
@@ -43,150 +73,173 @@ export default function Estimator() {
     setLoading(true);
     setError(null);
     try {
-      const body = form.climate === "custom" ? { ...form, custom_monthly_c: customTemps } : form;
+      const body = form.climate === "custom" ? { ...form, custom_monthly_c: temps } : form;
       setResult(await runEstimate(body));
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Something went wrong.");
+      setError(err instanceof Error ? err.message : "The estimate didn't run. Check your connection and try again.");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="grid">
-      <form className="card" onSubmit={submit}>
-        <h2>Your vehicle and driving</h2>
-
-        <label>
-          Vehicle
-          <select value={form.vehicle} onChange={(e) => set("vehicle", e.target.value)}>
-            {Object.entries(presets.vehicles).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-          </select>
-        </label>
-
-        <label>
-          Climate
-          <select value={form.climate} onChange={(e) => set("climate", e.target.value)}>
-            {Object.entries(presets.climates).map(([k, v]) => (
-              <option key={k} value={k}>{v}</option>
-            ))}
-            <option value="custom">Custom (enter monthly temperatures)</option>
-          </select>
-        </label>
+    <>
+      <form onSubmit={submit} aria-describedby="form-status">
+        <p className="sentence">
+          I drive{" "}
+          <Pick label="Vehicle" value={form.vehicle} options={Object.entries(vehicles)}
+            onChange={(v) => set("vehicle", v)} />{" "}
+          about{" "}
+          <input className="field field-km" aria-label="Kilometres per day" type="number" inputMode="numeric"
+            min={1} max={600} required value={form.daily_km}
+            onChange={(e) => set("daily_km", Number(e.target.value))} />{" "}
+          km a day in{" "}
+          <span className="nowrap">
+            <Pick label="Climate" value={form.climate}
+              options={[...Object.entries(climates), ["custom", "somewhere else"]]}
+              onChange={(v) => set("climate", v)} />.
+          </span>{" "}
+          I charge to{" "}
+          <span className="nowrap">
+            <Pick label="Charge target" value={form.charge_target_soc}
+              options={CHARGE_TO.map((v) => [v, pct(v)])}
+              onChange={(v) => set("charge_target_soc", Number(v))} />,
+          </span>{" "}
+          use fast chargers for{" "}
+          <Pick label="Share of fast charging" value={form.fast_charge_share}
+            options={FAST_SHARE.map((v) => [v, pct(v)])}
+            onChange={(v) => set("fast_charge_share", Number(v))} />{" "}
+          of charges, and the battery{" "}
+          <Pick label="Thermal management" value={form.thermal_management ? "yes" : "no"}
+            options={[["yes", "is"], ["no", "isn\u2019t"]]}
+            onChange={(v) => set("thermal_management", v === "yes")} />{" "}
+          heated and cooled. Show me the next{" "}
+          <span className="nowrap">
+            <Pick label="Years to project" value={form.years}
+              options={YEARS.map((v) => [v, `${v} years`])}
+              onChange={(v) => set("years", Number(v))} />.
+          </span>
+        </p>
 
         {form.climate === "custom" && (
           <fieldset className="temps">
-            <legend>Average monthly temperature (°C)</legend>
+            <legend>Average temperature each month, in °C</legend>
             {MONTHS.map((m, i) => (
-              <label key={m} className="temp">
+              <label key={m}>
                 {m}
-                <input
-                  type="number"
-                  step="0.1"
-                  value={customTemps[i]}
+                <input type="number" step="0.5" min={-45} max={50} value={temps[i]}
                   onChange={(e) => {
-                    const next = [...customTemps];
+                    const next = [...temps];
                     next[i] = Number(e.target.value);
-                    setCustomTemps(next);
-                  }}
-                />
+                    setTemps(next);
+                  }} />
               </label>
             ))}
           </fieldset>
         )}
 
-        <label>
-          Daily driving: <strong>{form.daily_km} km</strong>
-          <input type="range" min={5} max={400} step={5} value={form.daily_km}
-            onChange={(e) => set("daily_km", Number(e.target.value))} />
-        </label>
-
-        <label>
-          DC fast charging: <strong>{Math.round(form.fast_charge_share * 100)}%</strong> of charges
-          <input type="range" min={0} max={1} step={0.05} value={form.fast_charge_share}
-            onChange={(e) => set("fast_charge_share", Number(e.target.value))} />
-        </label>
-
-        <label>
-          Charge to: <strong>{Math.round(form.charge_target_soc * 100)}%</strong>
-          <input type="range" min={0.5} max={1} step={0.05} value={form.charge_target_soc}
-            onChange={(e) => set("charge_target_soc", Number(e.target.value))} />
-        </label>
-
-        <label>
-          Years to project: <strong>{form.years}</strong>
-          <input type="range" min={1} max={20} step={1} value={form.years}
-            onChange={(e) => set("years", Number(e.target.value))} />
-        </label>
-
-        <label className="check">
-          <input type="checkbox" checked={form.thermal_management}
-            onChange={(e) => set("thermal_management", e.target.checked)} />
-          Battery has active thermal management (heating/cooling)
-        </label>
-
-        <button type="submit" disabled={loading}>
-          {loading ? "Simulating a year of driving…" : "Estimate battery health"}
-        </button>
-        {error && <p className="error">{error}</p>}
+        <div className="actions">
+          <button className="run" type="submit" disabled={loading}>
+            {loading ? "Running the model…" : "Estimate battery health"}
+          </button>
+          <p id="form-status" className={error ? "status error" : "status"} role="status">
+            {error ?? (loading ? "Simulating a year of driving, parking and charging. This takes a few seconds." : "")}
+          </p>
+        </div>
       </form>
 
-      <section className="card results" aria-live="polite">
-        {!result && !loading && (
-          <p className="muted">
-            Pick your vehicle, climate and habits, then run the estimate. The physics model simulates
-            365 days of driving, parking and charging, then projects the battery&apos;s health forward.
+      {result && (
+        <section className="result" ref={resultRef} aria-label="Estimate">
+          <Answer result={result} years={form.years} />
+          <SohChart data={result.curve} />
+          <p className="chart-caption">
+            Share of the original capacity left each year. The shaded band is where packs are usually
+            retired from driving and reused for stationary storage.
           </p>
-        )}
-        {loading && <p className="muted">Running the electrochemical model — this takes a few seconds.</p>}
-        {result && !loading && (
-          <>
-            <h2>Estimated battery health</h2>
-            <div className="stats">
-              <Stat label={`After ${form.years} years`} value={`${result.soh_at_end_pct}%`} />
-              <Stat label="Range then" value={`${Math.round(result.curve.at(-1)!.range_km)} km`}
-                sub={`new: ${Math.round(result.new_range_km)} km`} />
-              <Stat label="Reaches 80%" value={result.years_to_80_pct ? `${result.years_to_80_pct} yrs` : "40+ yrs"} />
-              <Stat label="Reaches 70%" value={result.years_to_70_pct ? `${result.years_to_70_pct} yrs` : "40+ yrs"} />
+
+          <div className="details">
+            <div>
+              <h2>What wears the battery</h2>
+              <ul className="wear">
+                {Object.entries(result.fade_breakdown_pct).map(([k, v]) => (
+                  <li key={k}>
+                    <span>{k === "SEI growth" ? "Surface film growth (SEI)" : k}</span>
+                    <span className="pct">{v}%</span>
+                    <span className="meter" aria-hidden="true"><span style={{ width: `${v}%` }} /></span>
+                  </li>
+                ))}
+              </ul>
             </div>
-            <SohChart data={result.curve} />
-            <p className="advice">{result.second_life}</p>
-            <h3>What&apos;s causing the wear (year 1)</h3>
-            <ul className="breakdown">
-              {Object.entries(result.fade_breakdown_pct).map(([k, v]) => (
-                <li key={k}>
-                  <span>{k}</span>
-                  <span className="bar"><span style={{ width: `${v}%` }} /></span>
-                  <span>{v}%</span>
-                </li>
-              ))}
-            </ul>
-            <p className="fine">
-              Daily depth of discharge {result.daily_depth_of_discharge_pct}% · {result.climate_label} ·{" "}
-              {result.cached ? "cached result" : `simulated in ${result.sim_seconds}s`}. Estimates only — real
-              packs vary with chemistry, manufacturer software and how the car was treated.
+            <div>
+              <h2>What happens after</h2>
+              <p>{result.second_life}</p>
+            </div>
+          </div>
+
+          <div className="fineprint">
+            <p>
+              Each day uses {result.daily_depth_of_discharge_pct}% of the battery.{" "}
+              {result.cached ? "This result was loaded from an earlier run." : `The model took ${result.sim_seconds} seconds.`}{" "}
+              Real packs vary with chemistry, manufacturer software and how the car was treated.
             </p>
             {SUPPORT_URL && (
-              <p className="support">
-                Found this useful? The simulations run on a real server —{" "}
-                <a href={SUPPORT_URL} target="_blank" rel="noopener noreferrer">☕ support the project</a>.
+              <p>
+                The simulations run on a real server. If this helped,{" "}
+                <a href={SUPPORT_URL} target="_blank" rel="noopener noreferrer">you can support the project</a>.
               </p>
             )}
-          </>
-        )}
-      </section>
-    </div>
+          </div>
+        </section>
+      )}
+    </>
   );
 }
 
-function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
+// A <select> that is only as wide as its chosen option, so it sits inside the sentence like a word.
+function Pick({ value, options, label, onChange }: {
+  value: string | number;
+  options: [string | number, string][];
+  label: string;
+  onChange: (v: string) => void;
+}) {
+  const measure = useRef<HTMLSpanElement>(null);
+  const [width, setWidth] = useState<number>();
+  const text = options.find(([k]) => String(k) === String(value))?.[1] ?? "";
+  useLayoutEffect(() => {
+    // Measure again once the web font has loaded; the fallback font is narrower.
+    const fit = () => measure.current && setWidth(measure.current.getBoundingClientRect().width + 10);
+    fit();
+    document.fonts?.ready.then(fit);
+  }, [text]);
   return (
-    <div className="stat">
-      <div className="stat-label">{label}</div>
-      <div className="stat-value">{value}</div>
-      {sub && <div className="stat-sub">{sub}</div>}
-    </div>
+    <>
+      <span ref={measure} className="field measure" aria-hidden="true">{text}</span>
+      <select className="field" aria-label={label} value={value} style={{ width }}
+        onChange={(e) => onChange(e.target.value)}>
+        {options.map(([k, v]) => <option key={k} value={k}>{v}</option>)}
+      </select>
+    </>
+  );
+}
+
+function Answer({ result, years }: { result: EstimateResponse; years: number }) {
+  const end = result.curve[result.curve.length - 1];
+  const y80 = result.years_to_80_pct;
+  const y70 = result.years_to_70_pct;
+
+  let milestones: string;
+  if (y80 === null) milestones = "In this model it stays above 80% for more than 40 years.";
+  else if (y70 === null) milestones = `It reaches 80% after about ${y80} years and stays above 70% for more than 40.`;
+  else milestones = `It reaches 80% after about ${y80} years and 70% after about ${y70}.`;
+
+  return (
+    <>
+      <p className="answer">
+        After {years} years the battery should hold about <strong>{result.soh_at_end_pct}%</strong> of its
+        original capacity, roughly <strong>{Math.round(end.range_km)} km</strong> of range compared with{" "}
+        {Math.round(result.new_range_km)} km when new.
+      </p>
+      <p className="answer-sub">{milestones}</p>
+    </>
   );
 }

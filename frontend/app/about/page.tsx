@@ -1,49 +1,60 @@
 import type { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "How it works — EV Battery Health Estimator",
+  title: "How it works | EV Battery Health Estimator",
   description: "The electrochemical model, assumptions and limitations behind the battery health estimate.",
 };
 
 export default function About() {
   return (
-    <article className="card prose">
-      <h1>How the estimate works</h1>
-      <p>
-        Instead of a simple rule of thumb, each estimate runs an electrochemical battery model built with{" "}
-        <a href="https://pybamm.org" target="_blank" rel="noopener noreferrer">PyBaMM</a>, an open-source
-        battery modelling library.
+    <article className="article">
+      <h1 className="headline">How the estimate works</h1>
+      <p className="lede">
+        Each estimate runs an electrochemical battery model built with{" "}
+        <a href="https://pybamm.org" target="_blank" rel="noopener noreferrer">PyBaMM</a>, an open-source battery
+        modelling library. It simulates your first year of driving in full, then projects it forward.
       </p>
-      <h2>1. A representative day</h2>
-      <p>
-        Your daily distance, vehicle efficiency and charger power become one day of use: driving
-        (discharge), parking (rest) and charging. Rates are expressed relative to pack size (C-rates), so the
-        same model works for a hatchback or a city bus.
-      </p>
-      <h2>2. A full simulated year</h2>
-      <p>
-        The model simulates 365 of those days. The temperature changes month by month for your climate. With
-        thermal management on, the pack is kept between 15 and 30 °C while driving and charging, but sits
-        at outside temperature while parked.
-      </p>
-      <h2>3. The degradation physics</h2>
+
+      <ol className="steps">
+        <li>
+          <h2>Your day becomes a test cycle</h2>
+          <p>
+            Daily distance, vehicle efficiency and charger power turn into one day of use: driving, parking,
+            then charging back to your chosen level. Everything is scaled to pack size, so the same model works
+            for a hatchback or a city bus.
+          </p>
+        </li>
+        <li>
+          <h2>A full year is simulated</h2>
+          <p>
+            The model runs 365 of those days, with the temperature changing month by month for your climate. If
+            the battery is heated and cooled, it stays between 15 and 30 °C while driving and charging, but sits
+            at the outside temperature while parked.
+          </p>
+        </li>
+        <li>
+          <h2>Two kinds of wear are tracked</h2>
+          <p>
+            A surface film (the SEI) slowly grows on the graphite electrode and traps lithium. It grows faster
+            in heat and at a high state of charge. Fast or cold charging can also plate metallic lithium onto
+            the electrode, and part of it is lost for good.
+          </p>
+        </li>
+        <li>
+          <h2>The trend is projected forward</h2>
+          <p>
+            The lithium lost in the first year is fitted with a square-root-of-time term, which is typical of
+            film growth, plus a straight-line term for wear from each cycle. That fit is extended to later
+            years and scaled by a calibration factor for wear the model leaves out, such as electrode cracking.
+          </p>
+        </li>
+      </ol>
+
+      <h3>Limitations</h3>
       <ul>
-        <li><strong>SEI growth</strong> — a film on the graphite electrode slowly consumes lithium. It speeds up
-          with heat and high state of charge.</li>
-        <li><strong>Lithium plating</strong> — metallic lithium deposits during fast or cold charging, part of
-          which is lost permanently.</li>
-      </ul>
-      <h2>4. Projecting forward</h2>
-      <p>
-        The first-year lithium loss is fitted with a square-root-of-time term (typical of SEI growth) plus a
-        linear term (per-cycle damage). That fit is then extended to later years. A calibration factor
-        accounts for mechanisms the model leaves out, such as electrode cracking.
-      </p>
-      <h2>Limitations</h2>
-      <ul>
-        <li>The parameters come from one NMC811 cylindrical cell (OKane2022). LFP packs usually age differently.</li>
-        <li>Manufacturer buffers and battery-management software are not modelled.</li>
-        <li>This is an educational estimate, not a diagnosis of a specific vehicle.</li>
+        <li>The parameters come from one NMC811 cylindrical cell (OKane2022). LFP batteries usually age differently.</li>
+        <li>Manufacturer buffers and battery-management software aren&apos;t modelled.</li>
+        <li>Absolute numbers are still being calibrated against real fleet data, so they lean optimistic.</li>
       </ul>
     </article>
   );

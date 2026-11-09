@@ -159,9 +159,9 @@ def _years_to(predict_soh, threshold: float, horizon: float = 40.0):
 def second_life_advice(soh_end: float, years: int) -> str:
     if soh_end >= 80:
         return (f"Still above 80% after {years} years: suitable for continued driving. "
-                "Packs usually move to stationary storage once they fall to roughly 70-80%.")
+                "Packs usually move to stationary storage once they fall to roughly 70–80%.")
     if soh_end >= 70:
-        return ("In the typical repurposing window (70-80% SoH). A good candidate for "
+        return ("In the typical repurposing window (70–80% SoH). A good candidate for "
                 "second-life grid or home energy storage, where lower energy density matters less.")
     return ("Below ~70% SoH: limited range for driving and reduced value for second-life storage; "
             "recycling for materials may be the better route.")
