@@ -8,3 +8,9 @@ scipy
 #dev / tests
 pytest
 httpx2
+
+[pytest]
+pythonpath = .
+testpaths = tests
+filterwarnings =
+    ignore::DeprecationWarning:starlette.*
