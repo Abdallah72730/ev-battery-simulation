@@ -124,9 +124,8 @@ gcloud run deploy battery-api \
 ### Support link (Stripe)
 
 Create a Stripe **Payment Link** with "Let customers choose what to pay". No code or backend is
-needed. Paste the URL into `NEXT_PUBLIC_SUPPORT_URL` and the footer shows "☕ Support the project".
-Leave the variable empty and the link is hidden. Call it "support" or "tip" rather than "donation",
-because you are not a registered charity.
+needed. Paste the URL into `NEXT_PUBLIC_SUPPORT_URL` and the footer shows "Support the project".
+Leave the variable empty and the link is hidden.
 
 ## Cost and scaling
 
