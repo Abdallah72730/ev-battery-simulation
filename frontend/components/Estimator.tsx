@@ -5,7 +5,6 @@ import dynamic from "next/dynamic";
 import { fetchPresets, runEstimate, type EstimateRequest, type EstimateResponse } from "@/lib/api";
 
 const SohChart = dynamic(() => import("./SohChart"), { ssr: false });
-const SUPPORT_URL = process.env.NEXT_PUBLIC_SUPPORT_URL;
 const MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
 // Short names that read naturally inside the sentence.
@@ -182,12 +181,6 @@ export default function Estimator() {
               {result.cached ? "This result was loaded from an earlier run." : `The model took ${result.sim_seconds} seconds.`}{" "}
               Real packs vary with chemistry, manufacturer software and how the car was treated.
             </p>
-            {SUPPORT_URL && (
-              <p>
-                The simulations run on a real server. If this helped,{" "}
-                <a href={SUPPORT_URL} target="_blank" rel="noopener noreferrer">you can support the project</a>.
-              </p>
-            )}
           </div>
         </section>
       )}
