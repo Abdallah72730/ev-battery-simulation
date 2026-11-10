@@ -148,7 +148,6 @@ rate high.
 - [ ] Shared cache and a precomputed scenario grid
 - [ ] Neural-network surrogate model
 - [ ] Used-EV mode: enter the car's age and km to estimate its current SoH
-- [ ] Paid detailed PDF report, AdSense on the About and blog pages
 
 ## Credits
 
