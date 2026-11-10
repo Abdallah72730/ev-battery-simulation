@@ -1,7 +1,7 @@
 # EV Battery Health Estimator
 
 A web tool that forecasts how an electric vehicle battery will age based on vehicle, climate and
-charging habits. The forecast comes from a physics-based electrochemical model (PyBaMM), not a rule of thumb.
+charging habits. The forecast comes from a physics-based electrochemical model (PyBaMM).
 It also tells you when a pack becomes a candidate for second-life grid storage.
 
 ```
@@ -73,7 +73,7 @@ npm run dev            # http://localhost:3000
    per-cycle damage. The fit is then extended to the requested number of years.
 5. **Calibration.** `SoH = 100 − CALIBRATION_FACTOR × LLI`. See below.
 
-### Calibration (the next step for the research side)
+### Calibration
 
 The model only captures lithium-inventory loss. Real packs also lose active material, so the raw
 model under-predicts fade. With the default `CALIBRATION_FACTOR` of 1.8, a mid-size EV reaches
@@ -85,7 +85,7 @@ thermal management) already point the right way. To make it defensible:
    publish EV battery aging data) or from city transit agencies' electric bus reports.
 2. Run the estimator for matching conditions and fit the factor, or better, fit the SEI and
    plating parameters directly, by minimising the error.
-3. Report the validation error on the About page. That turns this from a demo into a research result.
+3. Report the validation error on the About page.
 
 ## Deploy
 
@@ -106,8 +106,7 @@ gcloud run deploy battery-api \
   --allow-unauthenticated
 ```
 
-- `--max-instances 3` is your cost ceiling. Traffic beyond that waits or gets errors instead of
-  costing you money. Also set a budget alert in Google Cloud Billing.
+- `--max-instances 3` is cost ceiling. Traffic beyond that waits or gets errors.
 - Cold start takes a few seconds. The front end calls `/api/presets` on page load to wake the
   instance while the user fills in the form.
 
@@ -118,35 +117,16 @@ gcloud run deploy battery-api \
 3. Set the root directory to `frontend`, the build command to `npm run build`, and the output
    directory to `out`.
 4. Add the environment variables `NEXT_PUBLIC_API_URL=https://battery-api-xxxx.run.app` and
-   (optionally) `NEXT_PUBLIC_SUPPORT_URL`.
-5. Add a custom domain (around $10/yr) once you're ready for ads.
-
+    `NEXT_PUBLIC_SUPPORT_URL`.
+   
 ### Support link (Stripe)
 
 Create a Stripe **Payment Link** with "Let customers choose what to pay". No code or backend is
 needed. Paste the URL into `NEXT_PUBLIC_SUPPORT_URL` and the footer shows "Support the project".
-Leave the variable empty and the link is hidden.
 
-## Cost and scaling
-
-| Stage | What to do | Approx. cost |
-|---|---|---|
-| Launch | Settings above | $0 (Cloud Run free tier is 180k vCPU-seconds/month, enough for roughly 10–15k uncached simulations) |
-| Growing | Add a shared cache (Cloudflare KV or Upstash Redis) so all instances and restarts reuse results | $0–5/mo |
-| Popular | Precompute a grid of scenarios offline and serve lookups and interpolation from a Cloudflare Worker. Only unusual inputs hit PyBaMM | ~$5/mo |
-| ML step | Train a small neural-network surrogate on thousands of PyBaMM runs. It answers in milliseconds and runs in the browser or a Worker | ~$0 |
 
 The input rounding in `EstimateRequest.cache_key()` (5 km, 5 % steps) is what keeps the cache hit
 rate high.
-
-## Roadmap
-
-- [ ] Calibrate against real fleet data (see above)
-- [ ] LFP chemistry, which needs a parameter set with degradation data
-- [ ] Particle cracking / loss of active material (`particle mechanics` options; about 50 % slower)
-- [ ] Shared cache and a precomputed scenario grid
-- [ ] Neural-network surrogate model
-- [ ] Used-EV mode: enter the car's age and km to estimate its current SoH
 
 ## Credits
 
